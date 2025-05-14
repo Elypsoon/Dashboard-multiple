@@ -338,7 +338,22 @@ def display_simple_linear_regression(filtered_df, numeric_cols, selected_cities,
             fig = px.scatter(filtered_df, x=x_var, y=y_var, color='city',
                           trendline='ols' if add_trend else None,
                           title=f"{y_var} vs {x_var} - Comparación entre ciudades",
-                          opacity=0.7)
+                          opacity=0.5)
+            
+            # Modificar las líneas de tendencia para que sean más diferenciables
+            if add_trend:
+                # Diferentes estilos de líneas para mayor diferenciación
+                line_styles = ['dash', 'dot', 'dashdot', 'solid']
+                line_widths = [4, 3, 4, 3]
+                
+                trend_traces = [trace for trace in fig.data if hasattr(trace, 'mode') and trace.mode == 'lines']
+                
+                for i, trace in enumerate(trend_traces):
+                    # Aplicar estilo de línea diferente para cada ciudad
+                    trace.line.dash = line_styles[i % len(line_styles)]
+                    trace.line.width = line_widths[i % len(line_widths)]
+                    # Aumentar la opacidad de las líneas de tendencia
+                    trace.opacity = 1.0
             
             # Mostrar correlaciones por ciudad
             corr_by_city = {}
