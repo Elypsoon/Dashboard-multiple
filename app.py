@@ -156,7 +156,7 @@ def display_general_summary(filtered_df, selected_cities):
     
     with col1:
         fig_price = px.bar(price_avg, x='city', y='price', 
-                         title="Precio promedio por ciudad",
+                         title="Precio promedio por ciudad (MXN)",
                          color='city',
                          text_auto='.2f')
         st.plotly_chart(fig_price, use_container_width=True)
@@ -699,7 +699,7 @@ def display_map(filtered_df, selected_cities):
                     color=None if color_option == 'Ninguno' else color_option,
                     hover_name='name' if 'name' in filtered_df.columns else None,
                     hover_data=['city', 'price', 'room_type'],
-                    mapbox_style='open-street-map',
+                    map_style='open-street-map',
                     title="Distribución de alojamientos por ciudad",
                     zoom=zoom,
                     height=700
