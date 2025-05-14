@@ -143,6 +143,14 @@ def display_general_summary(filtered_df, selected_cities):
         filtered_df (DataFrame): DataFrame filtrado para el análisis
         selected_cities (list): Lista de ciudades seleccionadas
     """
+    # Diccionario con las rutas a las imágenes SVG de las banderas de cada ciudad
+    city_flags = {
+        'New York': 'https://upload.wikimedia.org/wikipedia/commons/a/a4/Flag_of_the_United_States.svg',
+        'CDMX': 'https://upload.wikimedia.org/wikipedia/commons/f/fc/Flag_of_Mexico.svg',
+        'Florencia': 'https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg',
+        'Bangkok': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Flag_of_Thailand.svg'
+    }
+    
     st.markdown('<h2 class="section-header">Resumen general</h2>', unsafe_allow_html=True)
     
     # Métricas comparativas entre ciudades
@@ -156,14 +164,14 @@ def display_general_summary(filtered_df, selected_cities):
     
     with col1:
         fig_price = px.bar(price_avg, x='city', y='price', 
-                         title="Precio promedio por ciudad (MXN)",
+                         title="💲 Precio promedio por ciudad (MXN)",
                          color='city',
                          text_auto='.2f')
         st.plotly_chart(fig_price, use_container_width=True)
     
     with col2:
         fig_count = px.bar(count_by_city, x='city', y='count', 
-                          title="Número de alojamientos por ciudad",
+                          title="🏡 Número de alojamientos por ciudad",
                           color='city',
                           text_auto=True)
         st.plotly_chart(fig_count, use_container_width=True)
@@ -174,15 +182,17 @@ def display_general_summary(filtered_df, selected_cities):
     
     for i, city in enumerate(selected_cities):
         city_df = filtered_df[filtered_df['city'] == city]
+        flag_url = city_flags.get(city, '')
+        flag_html = f'<img src="{flag_url}" style="height:20px; margin-right:5px; vertical-align:middle;">' if flag_url else '🏙️ '
         
         with city_cols[i]:
-            st.markdown(f'<div class="metric-card" style="text-align:center;"><h4>{city}</h4>', unsafe_allow_html=True)
-            st.metric("Precio promedio", f"${city_df['price'].mean():.2f}")
+            st.markdown(f'<div class="metric-card" style="text-align:center;"><h4>{flag_html} {city}</h4>', unsafe_allow_html=True)
+            st.metric("💰 Precio promedio", f"${city_df['price'].mean():.2f}")
             
             if 'review_scores_rating' in filtered_df.columns:
-                st.metric("Puntuación media", f"{city_df['review_scores_rating'].mean():.2f}/5")
+                st.metric("⭐ Puntuación media", f"{city_df['review_scores_rating'].mean():.2f}/5")
             
-            st.metric("Total alojamientos", f"{len(city_df):,}")
+            st.metric("🏠 Total alojamientos", f"{len(city_df):,}")
             st.markdown('</div>', unsafe_allow_html=True)
     
     # Estadísticas descriptivas
@@ -211,7 +221,7 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
         numeric_cols (list): Lista de columnas numéricas
         selected_cities (list): Lista de ciudades seleccionadas
     """
-    st.markdown('<h2 class="section-header">Análisis univariante</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">📊 Análisis univariante</h2>', unsafe_allow_html=True)
     
     col1, col2 = st.columns([1, 1])
     
@@ -292,7 +302,7 @@ def display_bivariate_analysis(filtered_df, numeric_cols, selected_cities):
         numeric_cols (list): Lista de columnas numéricas
         selected_cities (list): Lista de ciudades seleccionadas
     """
-    st.markdown('<h2 class="section-header">Análisis bivariante</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">🏁 Análisis bivariante</h2>', unsafe_allow_html=True)
     
     # Seleccionar tipo de análisis
     analysis_type = st.radio("Tipo de análisis", 
@@ -666,7 +676,7 @@ def display_map(filtered_df, selected_cities):
         filtered_df (DataFrame): DataFrame filtrado para el análisis
         selected_cities (list): Lista de ciudades seleccionadas
     """
-    st.markdown('<h2 class="section-header">Mapa de alojamientos</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">🌍 Mapa de alojamientos</h2>', unsafe_allow_html=True)
     
     if {'latitude', 'longitude'}.issubset(filtered_df.columns):
         col1, col2 = st.columns([3, 1])
@@ -685,7 +695,7 @@ def display_map(filtered_df, selected_cities):
                 index=0
             )
             
-            zoom = st.slider("Zoom", 2, 14, 3)  # Zoom inicial más bajo para ver múltiples ciudades
+            zoom = st.slider("🔎 Zoom", 2, 14, 3)  # Zoom inicial más bajo para ver múltiples ciudades
             
             st.info(f"**Mostrando:** {len(filtered_df)} alojamientos en {len(selected_cities)} ciudades")
         
