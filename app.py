@@ -237,7 +237,7 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
         else:
             chart_type = st.selectbox("Tipo de gráfica", ['Barras', 'Pastel'], key='categorical_chart')
     
-    # Comparación entre ciudades
+    # Comparación entre ciudades (gráfico combinado)
     if var in numeric_cols:
         if chart_type == 'Histograma':
             fig = px.histogram(filtered_df, x=var, color='city', 
@@ -266,32 +266,89 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
                          title=f"Curva de densidad de {var} por ciudad",
                          labels={"x": var, "y": "Densidad"})
     else:
-        # Para variables categóricas
-        vc = filtered_df.groupby(['city', var]).size().reset_index(name='count')
+        # Para variables categóricas - solo mostrar gráfico de barras combinado
         if chart_type == 'Barras':
+            vc = filtered_df.groupby(['city', var]).size().reset_index(name='count')
             fig = px.bar(vc, x=var, y='count', color='city',
                         title=f"Distribución de {var} por ciudad",
                         barmode='group')
-        else:  # Pastel
-            fig = px.pie(vc, values='count', names=var, 
-                        facet_col='city',
-                        title=f"Distribución de {var} por ciudad",
-                        color_discrete_sequence=px.colors.qualitative.Plotly)
+            
+            # Mejorar diseño del gráfico combinado
+            fig.update_layout(
+                template="plotly_white",
+                margin=dict(l=20, r=20, t=50, b=20),
+                height=500
+            )
+            st.plotly_chart(fig, use_container_width=True)
     
-    # Mejorar diseño del gráfico
-    fig.update_layout(
-        template="plotly_white",
-        margin=dict(l=20, r=20, t=50, b=20),
-        height=500
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    # Para gráficos que no son de pastel, mostrar el gráfico combinado
+    if not (var not in numeric_cols and chart_type == 'Pastel'):
+        # Mejorar diseño del gráfico combinado
+        fig.update_layout(
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=50, b=20),
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
     
-    # Estadísticas por ciudad
-    st.subheader("Estadísticas por ciudad")
-    city_for_stats = st.selectbox("Selecciona una ciudad", selected_cities, key="city_univar_stats")
-    city_df = filtered_df[filtered_df['city'] == city_for_stats]
+    # NUEVO: Gráficos individuales por ciudad en formato grid
+    st.subheader("Vista individual por ciudad")
     
-    st.write(city_df[var].describe())
+    # Determinar el número de columnas basado en la cantidad de ciudades
+    num_cols = min(2, len(selected_cities))  # Máximo 3 columnas
+    cols = st.columns(num_cols)
+    
+    for i, city in enumerate(selected_cities):
+        city_df = filtered_df[filtered_df['city'] == city]
+        with cols[i % num_cols]:
+            st.subheader(city)
+            
+            if var in numeric_cols:
+                if chart_type == 'Histograma':
+                    city_fig = px.histogram(city_df, x=var, 
+                                        title=f"{city}",
+                                        color_discrete_sequence=['#FF5A5F'])
+                elif chart_type == 'Caja':
+                    city_fig = px.box(city_df, y=var,
+                                   title=f"{city}",
+                                   color_discrete_sequence=['#FF5A5F'])
+                else:  # Líneas
+                    # Generar curva de densidad para la ciudad individual
+                    city_data = city_df[var].dropna()
+                    if len(city_data) > 0:
+                        hist, bin_edges = np.histogram(city_data, bins=20, density=True)
+                        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                        density_single = pd.DataFrame({"x": bin_centers, "y": hist})
+                        city_fig = px.line(density_single, x="x", y="y",
+                                      title=f"{city}",
+                                      labels={"x": var, "y": "Densidad"},
+                                      color_discrete_sequence=['#FF5A5F'])
+            else:
+                # Para variables categóricas
+                city_vc = city_df[var].value_counts().reset_index()
+                city_vc.columns = [var, 'count']
+                if chart_type == 'Barras':
+                    city_fig = px.bar(city_vc, x=var, y='count',
+                                   title=f"{city}",
+                                   color_discrete_sequence=['#FF5A5F'])
+                else:  # Pastel
+                    city_fig = px.pie(city_vc, values='count', names=var,
+                                   title=f"{city}",
+                                   color_discrete_sequence=px.colors.qualitative.Plotly)
+            
+            # Ajustar tamaño para el grid
+            city_fig.update_layout(
+                height=300,
+                margin=dict(l=10, r=10, t=40, b=10),
+                title_x=0.5,
+            )
+            st.plotly_chart(city_fig, use_container_width=True)
+            
+            # Mostrar estadísticas básicas para cada ciudad
+            if var in numeric_cols:
+                stats = city_df[var].describe().round(2)
+                st.write(f"Media: {stats['mean']}, Mediana: {stats['50%']}")
+                st.write(f"Min: {stats['min']}, Max: {stats['max']}")
 
 def display_bivariate_analysis(filtered_df, numeric_cols, selected_cities):
     """
@@ -309,17 +366,14 @@ def display_bivariate_analysis(filtered_df, numeric_cols, selected_cities):
                             ["Regresión lineal simple", "Regresión lineal múltiple", "Regresión logística"], 
                             horizontal=True)
     
-    # Selector de ciudades para comparar o analizar individualmente
-    compare_mode = st.radio("Modo de visualización", ["Comparar ciudades", "Analizar ciudad individual"], horizontal=True)
-    
     if analysis_type == "Regresión lineal simple":
-        display_simple_linear_regression(filtered_df, numeric_cols, selected_cities, compare_mode)
+        display_simple_linear_regression(filtered_df, numeric_cols, selected_cities)
     elif analysis_type == "Regresión lineal múltiple":
-        display_multiple_linear_regression(filtered_df, numeric_cols, selected_cities, compare_mode)
+        display_multiple_linear_regression(filtered_df, numeric_cols, selected_cities)
     else:  # Regresión logística
-        display_logistic_regression(filtered_df, numeric_cols, selected_cities, compare_mode)
+        display_logistic_regression(filtered_df, numeric_cols, selected_cities)
 
-def display_simple_linear_regression(filtered_df, numeric_cols, selected_cities, compare_mode):
+def display_simple_linear_regression(filtered_df, numeric_cols, selected_cities):
     """
     Muestra análisis de regresión lineal simple con comparación entre ciudades
     
@@ -327,7 +381,6 @@ def display_simple_linear_regression(filtered_df, numeric_cols, selected_cities,
         filtered_df (DataFrame): DataFrame filtrado para el análisis
         numeric_cols (list): Lista de columnas numéricas
         selected_cities (list): Lista de ciudades seleccionadas
-        compare_mode (str): Modo de comparación ('Comparar ciudades' o 'Analizar ciudad individual')
     """
     col1, col2 = st.columns([1, 1])
     
@@ -343,67 +396,86 @@ def display_simple_linear_regression(filtered_df, numeric_cols, selected_cities,
     if x_var == y_var:
         st.error("Por favor selecciona variables diferentes para los ejes X e Y.")
     else:
-        if compare_mode == "Comparar ciudades":
-            # Gráfico comparativo de dispersión
-            fig = px.scatter(filtered_df, x=x_var, y=y_var, color='city',
-                          trendline='ols' if add_trend else None,
-                          title=f"{y_var} vs {x_var} - Comparación entre ciudades",
-                          opacity=0.5)
+        # Definir un esquema de colores fijo para cada ciudad
+        city_colors = {
+            'New York': '#1f77b4',  # azul
+            'CDMX': '#ff7f0e',      # naranja
+            'Florencia': '#2ca02c',  # verde
+            'Bangkok': '#d62728'     # rojo
+        }
+        
+        # Gráfico comparativo de dispersión (todas las ciudades)
+        fig = px.scatter(filtered_df, x=x_var, y=y_var, color='city',
+                      trendline='ols' if add_trend else None,
+                      title=f"{y_var} vs {x_var} - Comparación entre ciudades",
+                      opacity=0.5)
+        
+        # Modificar las líneas de tendencia para que sean más diferenciables
+        if add_trend:
+            # Diferentes estilos de líneas para mayor diferenciación
+            line_styles = ['dash', 'dot', 'dashdot', 'solid']
+            line_widths = [4, 3, 4, 3]
             
-            # Modificar las líneas de tendencia para que sean más diferenciables
-            if add_trend:
-                # Diferentes estilos de líneas para mayor diferenciación
-                line_styles = ['dash', 'dot', 'dashdot', 'solid']
-                line_widths = [4, 3, 4, 3]
-                
-                trend_traces = [trace for trace in fig.data if hasattr(trace, 'mode') and trace.mode == 'lines']
-                
-                for i, trace in enumerate(trend_traces):
-                    # Aplicar estilo de línea diferente para cada ciudad
-                    trace.line.dash = line_styles[i % len(line_styles)]
-                    trace.line.width = line_widths[i % len(line_widths)]
-                    # Aumentar la opacidad de las líneas de tendencia
-                    trace.opacity = 1.0
+            trend_traces = [trace for trace in fig.data if hasattr(trace, 'mode') and trace.mode == 'lines']
             
-            # Mostrar correlaciones por ciudad
-            corr_by_city = {}
-            for city in selected_cities:
-                city_df = filtered_df[filtered_df['city'] == city]
-                corr = city_df[[x_var, y_var]].corr().iloc[0, 1]
-                corr_by_city[city] = corr
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Mostrar correlaciones en formato tabular
-            corr_data = pd.DataFrame(list(corr_by_city.items()), columns=['Ciudad', 'Correlación'])
-            st.write("Correlaciones de Pearson por ciudad:")
-            st.dataframe(corr_data)
-            
-        else:  # Análisis individual
-            city = st.selectbox("Selecciona una ciudad", selected_cities, key="city_simple_reg")
+            for i, trace in enumerate(trend_traces):
+                # Aplicar estilo de línea diferente para cada ciudad
+                trace.line.dash = line_styles[i % len(line_styles)]
+                trace.line.width = line_widths[i % len(line_widths)]
+                # Aumentar la opacidad de las líneas de tendencia
+                trace.opacity = 1.0
+        
+        # Mostrar correlaciones por ciudad
+        corr_by_city = {}
+        for city in selected_cities:
             city_df = filtered_df[filtered_df['city'] == city]
-            
-            fig = px.scatter(city_df, x=x_var, y=y_var,
-                          trendline='ols' if add_trend else None,
-                          title=f"{y_var} vs {x_var} - {city}",
-                          color_discrete_sequence=['#FF5A5F'],
-                          opacity=0.7)
-            
-            # Modificar color de línea de tendencia
-            if add_trend:
-                for trace in fig.data:
-                    if hasattr(trace, 'mode') and trace.mode == 'lines':
-                        trace.line.color = '#FF5A5F'
-                        trace.line.width = 3
-            
-            fig.update_layout(height=600)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Mostrar correlación
             corr = city_df[[x_var, y_var]].corr().iloc[0, 1]
-            st.info(f"**Correlación de Pearson:** {corr:.2f}")
+            corr_by_city[city] = corr
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Mostrar correlaciones en formato tabular
+        corr_data = pd.DataFrame(list(corr_by_city.items()), columns=['Ciudad', 'Correlación'])
+        st.write("Correlaciones de Pearson por ciudad:")
+        st.dataframe(corr_data)
+        
+        # NUEVO: Gráficos individuales por ciudad en formato grid
+        st.subheader("Vista individual por ciudad")
+        
+        # Determinar el número de columnas basado en la cantidad de ciudades
+        num_cols = min(2, len(selected_cities))  # Máximo 2 columnas para gráficos de dispersión
+        cols = st.columns(num_cols)
+        
+        for i, city in enumerate(selected_cities):
+            city_df = filtered_df[filtered_df['city'] == city]
+            with cols[i % num_cols]:
+                st.subheader(city)
+                
+                # Usar el mismo color que en el gráfico combinado
+                city_color = city_colors.get(city, '#FF5A5F')
+                
+                city_fig = px.scatter(city_df, x=x_var, y=y_var,
+                                   trendline='ols' if add_trend else None,
+                                   title=f"{y_var} vs {x_var} - {city}",
+                                   color_discrete_sequence=[city_color],
+                                   opacity=0.7)
+                
+                # Modificar color y estilo de línea de tendencia para mejor distinción
+                if add_trend:
+                    for trace in city_fig.data:
+                        if hasattr(trace, 'mode') and trace.mode == 'lines':
+                            trace.line.color = '#FFFF00'  # Amarillo
+                            trace.line.width = 2
+                            trace.line.dash = 'dash'  # Línea punteada
+                
+                city_fig.update_layout(height=400)
+                st.plotly_chart(city_fig, use_container_width=True)
+                
+                # Mostrar correlación
+                corr = city_df[[x_var, y_var]].corr().iloc[0, 1]
+                st.info(f"**Correlación de Pearson:** {corr:.2f}")
 
-def display_multiple_linear_regression(filtered_df, numeric_cols, selected_cities, compare_mode):
+def display_multiple_linear_regression(filtered_df, numeric_cols, selected_cities):
     """
     Muestra análisis de regresión lineal múltiple con comparación entre ciudades
     
@@ -411,7 +483,6 @@ def display_multiple_linear_regression(filtered_df, numeric_cols, selected_citie
         filtered_df (DataFrame): DataFrame filtrado para el análisis
         numeric_cols (list): Lista de columnas numéricas
         selected_cities (list): Lista de ciudades seleccionadas
-        compare_mode (str): Modo de comparación ('Comparar ciudades' o 'Analizar ciudad individual')
     """
     col1, col2 = st.columns([1, 1])
     
@@ -426,30 +497,33 @@ def display_multiple_linear_regression(filtered_df, numeric_cols, selected_citie
     if not x_vars:
         st.warning("Selecciona al menos una variable independiente.")
     else:
-        if compare_mode == "Comparar ciudades":
-            # Análisis comparativo para cada ciudad
-            r_values = {}
+        # Análisis comparativo para cada ciudad
+        r_values = {}
+        
+        for city in selected_cities:
+            city_df = filtered_df[filtered_df['city'] == city]
+            model_df = city_df[[y_var] + x_vars].dropna()
             
-            for city in selected_cities:
-                city_df = filtered_df[filtered_df['city'] == city]
-                model_df = city_df[[y_var] + x_vars].dropna()
-                
-                if len(model_df) > 0:
-                    X = sm.add_constant(model_df[x_vars])
-                    y = model_df[y_var]
-                    model = sm.OLS(y, X).fit()
-                    # Calcular R (correlación múltiple) en lugar de R²
-                    r_values[city] = np.sqrt(model.rsquared)
-            
-            # Mostrar R en un gráfico de barras
-            r_df = pd.DataFrame(list(r_values.items()), columns=['Ciudad', 'R'])
-            fig = px.bar(r_df, x='Ciudad', y='R', color='Ciudad', 
-                        title="Coeficiente de correlación múltiple (R) por ciudad",
-                        text_auto='.3f')
-            st.plotly_chart(fig, use_container_width=True)
-            
-        else:  # Análisis individual
-            city = st.selectbox("Selecciona una ciudad", selected_cities, key="city_multi_reg")
+            if len(model_df) > 0:
+                X = sm.add_constant(model_df[x_vars])
+                y = model_df[y_var]
+                model = sm.OLS(y, X).fit()
+                # Calcular R (correlación múltiple) en lugar de R²
+                r_values[city] = np.sqrt(model.rsquared)
+        
+        # Mostrar R en un gráfico de barras
+        r_df = pd.DataFrame(list(r_values.items()), columns=['Ciudad', 'R'])
+        fig = px.bar(r_df, x='Ciudad', y='R', color='Ciudad', 
+                    title="Coeficiente de correlación múltiple (R) por ciudad",
+                    text_auto='.3f')
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # NUEVO: Análisis individual por ciudad en formato de dos columnas
+        st.subheader("Análisis detallado por ciudad")
+        
+        # Para cada ciudad, crear dos columnas
+        for city in selected_cities:
+            st.markdown(f"### {city}")
             city_df = filtered_df[filtered_df['city'] == city]
             
             # Eliminar filas con valores nulos en las variables seleccionadas
@@ -463,23 +537,16 @@ def display_multiple_linear_regression(filtered_df, numeric_cols, selected_citie
                 y = model_df[y_var]
                 model = sm.OLS(y, X).fit()
                 
-                # Calcular coeficientes y R
-                multiple_r = np.sqrt(model.rsquared)
-                
+                # Dividir en dos columnas
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    st.subheader(f"Resultados del modelo para {city}")
-                    st.metric("Correlación múltiple (R)", f"{multiple_r:.4f}")
-                    st.metric("Coeficiente de determinación (R²)", f"{model.rsquared:.4f}")
-                
-                with col2:
                     # Gráfico de valores reales vs predichos
                     predictions = model.predict(X)
                     pred_df = pd.DataFrame({'Actual': y, 'Predicción': predictions})
                     
                     fig = px.scatter(pred_df, x='Actual', y='Predicción',
-                            title=f"Valores reales vs. predichos - {city}",
+                            title=f"Valores reales vs. predichos",
                             template="plotly_white")
                     
                     # Añadir línea diagonal de referencia
@@ -494,24 +561,28 @@ def display_multiple_linear_regression(filtered_df, numeric_cols, selected_citie
                     
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # Añadir matriz de correlaciones
-                st.subheader("Matriz de correlaciones")
-                # Calcular la matriz de correlaciones para todas las variables del modelo
-                corr_matrix = model_df.corr()
-                
-                # Crear el heatmap usando plotly
-                corr_fig = px.imshow(
-                    corr_matrix,
-                    text_auto='.2f',
-                    title=f"Matriz de correlaciones - {city}",
-                    color_continuous_scale='RdBu_r',
-                    zmin=-1, zmax=1
-                )
-                st.plotly_chart(corr_fig, use_container_width=True)
+                with col2:
+                    # Matriz de correlaciones
+                    corr_matrix = model_df.corr()
+                    
+                    # Crear el heatmap usando plotly
+                    corr_fig = px.imshow(
+                        corr_matrix,
+                        text_auto='.2f',
+                        title=f"Matriz de correlaciones",
+                        color_continuous_scale='RdBu_r',
+                        zmin=-1, zmax=1
+                    )
+                    st.plotly_chart(corr_fig, use_container_width=True)
 
-def display_logistic_regression(filtered_df, numeric_cols, selected_cities, compare_mode):
+def display_logistic_regression(filtered_df, numeric_cols, selected_cities):
     """
     Muestra análisis de regresión logística con comparación entre ciudades
+    
+    Args:
+        filtered_df (DataFrame): DataFrame filtrado para el análisis
+        numeric_cols (list): Lista de columnas numéricas
+        selected_cities (list): Lista de ciudades seleccionadas
     """
     st.subheader("Regresión logística")
     
@@ -564,11 +635,14 @@ def display_logistic_regression(filtered_df, numeric_cols, selected_cities, comp
         
         if not x_vars:
             st.warning("Selecciona al menos una variable independiente.")
-        elif compare_mode == "Comparar ciudades":
+        else:
             # Comparar métricas entre ciudades
             accuracy_values = {}
             precision_values = {}
             recall_values = {}
+            
+            # Para almacenar matrices de confusión
+            confusion_matrices = {}
             
             for city in selected_cities:
                 city_df = filtered_df[filtered_df['city'] == city]
@@ -589,6 +663,9 @@ def display_logistic_regression(filtered_df, numeric_cols, selected_cities, comp
                         accuracy_values[city] = accuracy_score(y, pred_classes)
                         precision_values[city] = precision_score(y, pred_classes, zero_division=0)
                         recall_values[city] = recall_score(y, pred_classes, zero_division=0)
+                        
+                        # Guardar matriz de confusión para cada ciudad
+                        confusion_matrices[city] = confusion_matrix(y, pred_classes)
                     except Exception as e:
                         st.warning(f"No se pudo ajustar el modelo para {city}: {str(e)}")
             
@@ -607,66 +684,31 @@ def display_logistic_regression(filtered_df, numeric_cols, selected_cities, comp
                             title="Comparación de métricas por ciudad",
                             text_auto='.3f')
                 st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.error("No se pudo ajustar el modelo para ninguna ciudad. Intenta con diferentes variables.")
-            
-        else:  # Análisis individual
-            city = st.selectbox("Selecciona una ciudad", selected_cities, key="city_logistic")
-            city_df = filtered_df[filtered_df['city'] == city]
-            
-            # Análisis para la ciudad seleccionada
-            model_df = city_df[[binary_var] + x_vars].dropna()
-            
-            if len(model_df) == 0:
-                st.error(f"No hay datos suficientes para el análisis en {city}.")
-            else:
-                try:
-                    # Asegurar que binary_var sea numérico
-                    model_df[binary_var] = model_df[binary_var].astype(float)
-                    
-                    X = sm.add_constant(model_df[x_vars])
-                    y = model_df[binary_var]
-                    
-                    logit_model = sm.Logit(y, X).fit(disp=0)
-                    
-                    # Métricas y matriz de confusión
-                    predictions = logit_model.predict(X)
-                    pred_classes = (predictions > 0.5).astype(int)
-                    
-                    accuracy = accuracy_score(y, pred_classes)
-                    precision = precision_score(y, pred_classes, zero_division=0)
-                    sensitivity = recall_score(y, pred_classes, zero_division=0)
-                    
-                    col1, col2 = st.columns([1, 1])
-                    
-                    with col1:
-                        st.subheader(f"Métricas del modelo para {city}")
-                        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+                
+                # NUEVO: Mostrar matrices de confusión en formato cuadrícula
+                st.subheader("Matrices de confusión por ciudad")
+                
+                # Determinar el número de columnas basado en la cantidad de ciudades
+                num_cols = min(2, len(confusion_matrices))  # Máximo 2 columnas
+                cols = st.columns(num_cols)
+                
+                for i, (city, cm) in enumerate(confusion_matrices.items()):
+                    with cols[i % num_cols]:
+                        st.subheader(city)
                         
-                        with metrics_col1:
-                            st.metric("Exactitud", f"{accuracy:.4f}")
-                        with metrics_col2:
-                            st.metric("Precisión", f"{precision:.4f}")
-                        with metrics_col3:
-                            st.metric("Sensibilidad", f"{sensitivity:.4f}")
-                    
-                    with col2:
-                        # Matriz de confusión
-                        st.subheader("Matriz de confusión")
-                        cm = confusion_matrix(y, pred_classes)
-                        
+                        # Crear matriz de confusión
                         cm_labels = ['Negativo', 'Positivo']
-                        cm_fig = px.imshow(cm, 
+                        cm_fig = px.imshow(cm,
                                         labels=dict(x="Predicción", y="Real", color="Cantidad"),
-                                        x=cm_labels, 
+                                        x=cm_labels,
                                         y=cm_labels,
                                         text_auto=True,
-                                        color_continuous_scale='RdBu_r')
+                                        color_continuous_scale='RdBu_r',
+                                        title=f"Matriz de confusión")
                         
                         st.plotly_chart(cm_fig, use_container_width=True)
-                except Exception as e:
-                    st.error(f"Error al ajustar el modelo: {str(e)}")
-                    st.info("Sugerencia: Intenta seleccionar diferentes variables independientes.")
+            else:
+                st.error("No se pudo ajustar el modelo para ninguna ciudad. Intenta con diferentes variables.")
 
 def display_map(filtered_df, selected_cities):
     """
