@@ -223,6 +223,14 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
     """
     st.markdown('<h2 class="section-header">📊 Análisis univariante</h2>', unsafe_allow_html=True)
     
+    # Definir un esquema de colores fijo para cada ciudad
+    city_colors = {
+        'New York': '#1f77b4',  # azul
+        'CDMX': '#ff7f0e',      # naranja
+        'Florencia': '#2ca02c',  # verde
+        'Bangkok': '#d62728'     # rojo
+    }
+    
     col1, col2 = st.columns([1, 1])
     
     with col1:
@@ -265,41 +273,42 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
             fig = px.line(density_df, x="x", y="y", color="city",
                          title=f"Curva de densidad de {var} por ciudad",
                          labels={"x": var, "y": "Densidad"})
+        
+        # Mostrar el gráfico combinado para variables numéricas
+        fig.update_layout(
+            template="plotly_white",
+            margin=dict(l=20, r=20, t=50, b=20),
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True, key=f"combined_{var}_{chart_type}")
     else:
-        # Para variables categóricas - solo mostrar gráfico de barras combinado
+        # Para variables categóricas
         if chart_type == 'Barras':
             vc = filtered_df.groupby(['city', var]).size().reset_index(name='count')
             fig = px.bar(vc, x=var, y='count', color='city',
                         title=f"Distribución de {var} por ciudad",
                         barmode='group')
             
-            # Mejorar diseño del gráfico combinado
+            # Mostrar el gráfico combinado para barras categóricas
             fig.update_layout(
                 template="plotly_white",
                 margin=dict(l=20, r=20, t=50, b=20),
                 height=500
             )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # Para gráficos que no son de pastel, mostrar el gráfico combinado
-    if not (var not in numeric_cols and chart_type == 'Pastel'):
-        # Mejorar diseño del gráfico combinado
-        fig.update_layout(
-            template="plotly_white",
-            margin=dict(l=20, r=20, t=50, b=20),
-            height=500
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"combined_{var}_{chart_type}")
+        # Para gráficos de pastel, no hay versión combinada, se muestran solo individuales
     
     # NUEVO: Gráficos individuales por ciudad en formato grid
     st.subheader("Vista individual por ciudad")
     
     # Determinar el número de columnas basado en la cantidad de ciudades
-    num_cols = min(2, len(selected_cities))  # Máximo 3 columnas
+    num_cols = min(2, len(selected_cities))  # Máximo 2 columnas
     cols = st.columns(num_cols)
     
     for i, city in enumerate(selected_cities):
         city_df = filtered_df[filtered_df['city'] == city]
+        city_color = city_colors.get(city, '#FF5A5F')  # Usar el mismo color que en el gráfico combinado
+        
         with cols[i % num_cols]:
             st.subheader(city)
             
@@ -307,11 +316,11 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
                 if chart_type == 'Histograma':
                     city_fig = px.histogram(city_df, x=var, 
                                         title=f"{city}",
-                                        color_discrete_sequence=['#FF5A5F'])
+                                        color_discrete_sequence=[city_color])
                 elif chart_type == 'Caja':
                     city_fig = px.box(city_df, y=var,
                                    title=f"{city}",
-                                   color_discrete_sequence=['#FF5A5F'])
+                                   color_discrete_sequence=[city_color])
                 else:  # Líneas
                     # Generar curva de densidad para la ciudad individual
                     city_data = city_df[var].dropna()
@@ -322,19 +331,20 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
                         city_fig = px.line(density_single, x="x", y="y",
                                       title=f"{city}",
                                       labels={"x": var, "y": "Densidad"},
-                                      color_discrete_sequence=['#FF5A5F'])
+                                      color_discrete_sequence=[city_color])
             else:
-                # Para variables categóricas
+                # Para variables categóricas - Usar colores por defecto para barras y pastel
                 city_vc = city_df[var].value_counts().reset_index()
                 city_vc.columns = [var, 'count']
                 if chart_type == 'Barras':
+                    # Usar colores diferentes para cada barra
                     city_fig = px.bar(city_vc, x=var, y='count',
                                    title=f"{city}",
-                                   color_discrete_sequence=['#FF5A5F'])
+                                   color=var,  # Usar la variable categórica para colorear
+                                   color_discrete_sequence=px.colors.qualitative.Bold)  # Usar una paleta de colores vibrante
                 else:  # Pastel
                     city_fig = px.pie(city_vc, values='count', names=var,
-                                   title=f"{city}",
-                                   color_discrete_sequence=px.colors.qualitative.Plotly)
+                                   title=f"{city}")
             
             # Ajustar tamaño para el grid
             city_fig.update_layout(
@@ -342,7 +352,8 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
                 margin=dict(l=10, r=10, t=40, b=10),
                 title_x=0.5,
             )
-            st.plotly_chart(city_fig, use_container_width=True)
+            # Añadir key único para cada gráfico para evitar duplicación de IDs
+            st.plotly_chart(city_fig, use_container_width=True, key=f"{city}_{var}_{chart_type}_{i}")
             
             # Mostrar estadísticas básicas para cada ciudad
             if var in numeric_cols:
