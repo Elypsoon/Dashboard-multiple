@@ -225,10 +225,10 @@ def display_univariate_analysis(filtered_df, numeric_cols, selected_cities):
     
     # Definir un esquema de colores fijo para cada ciudad
     city_colors = {
-        'New York': '#1f77b4',  # azul
-        'CDMX': '#ff7f0e',      # naranja
-        'Florencia': '#2ca02c',  # verde
-        'Bangkok': '#d62728'     # rojo
+        'New York': '#B2FFFF',
+        'CDMX': '#0000FF',
+        'Florencia': '#fa8072',
+        'Bangkok': '#d62728'
     }
     
     col1, col2 = st.columns([1, 1])
@@ -409,10 +409,10 @@ def display_simple_linear_regression(filtered_df, numeric_cols, selected_cities)
     else:
         # Definir un esquema de colores fijo para cada ciudad
         city_colors = {
-            'New York': '#1f77b4',  # azul
-            'CDMX': '#ff7f0e',      # naranja
-            'Florencia': '#2ca02c',  # verde
-            'Bangkok': '#d62728'     # rojo
+        'New York': '#B2FFFF',
+        'CDMX': '#0000FF',
+        'Florencia': '#fa8072',
+        'Bangkok': '#d62728'
         }
         
         # Gráfico comparativo de dispersión (todas las ciudades)
